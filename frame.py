@@ -12,11 +12,10 @@ from entities.player import Player
 
 
 class Screen(Widget):
-    _blocks = set()
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+        self._blocks = set()
         self._pressed_keys = set()
 
         self._keyboard = Window.request_keyboard(self._on_keyboard_closed, self)
@@ -36,11 +35,12 @@ class Screen(Widget):
             )
 
         self._frame = Clock.schedule_interval(self._on_frame, 0)
-        self._move = Clock.schedule_interval(self._move_doors, 1 / 45)
-        self._spawn = Clock.schedule_interval(self._spawn_doors, 2)
+        self._move = Clock.schedule_interval(self._move_blocks, 1 / 45)
+        self._spawn = Clock.schedule_interval(self._spawn_blocks, 2)
 
     def _on_frame(self, dt):
         step = 500 * dt
+
         x, y = self._player.pos
         if 'left' in self._pressed_keys:
             x -= step
@@ -52,66 +52,68 @@ class Screen(Widget):
             x = 0
         self._player.pos = (x, y)
 
+        # if screen size changes
         self._score_instruction.pos = (0, Window.height - 30)
 
-    def _move_doors(self, dt):
-        removables = []
+    def _move_blocks(self, dt):
+        disapeared = []
 
         for block in self._blocks:
             block.pos = (block.pos[0], block.pos[1] - 10)
             self._check_for_collision(block)
 
             if block.pos[1] + block.size[1] <= 0:
-                removables.append(block)
+                disapeared.append(block)
                 self.score = self._score + 1
 
-        for removable in removables:
-            self._blocks.remove(removable)
+        for hidden_block in disapeared:
+            self._blocks.remove(hidden_block)
 
-    def _spawn_doors(self, dt):
+    def _spawn_blocks(self, dt):
         player_width = self._player.size[0]
-        doors_number = random.randint(1, 3)
-        fake_doors_number = random.randint(2, 5)
+        pathways_number = random.randint(1, 3)
+        fake_paths_number = random.randint(2, 5)
 
-        if (doors_number + fake_doors_number) % 2 == 0:
-            fake_doors_number += 1
+        # total of paths and blocks must be odd
+        if (pathways_number + fake_paths_number) % 2 == 0:
+            fake_paths_number += 1
 
-        leftover = self.width - ((doors_number * (player_width + 20)) + (fake_doors_number * (player_width - 20)))
-        max_interval = int(math.ceil(leftover / (doors_number + fake_doors_number + 1)))
+        free_space = self.width - ((pathways_number * (player_width + 20)) + (fake_paths_number * (player_width - 20)))
+        interval_size = int(math.ceil(free_space / (pathways_number + fake_paths_number + 1)))
 
         holes = []
-        for door in range(doors_number):
+        for path in range(pathways_number):
             holes.append(player_width + 20)
-        for fake_door in range(fake_doors_number):
+        for fake_path in range(fake_paths_number):
             holes.append(player_width - 20)
 
-        line = [max_interval]
-        for i in range(doors_number + fake_doors_number):
+        line = [interval_size]
+        for i in range(pathways_number + fake_paths_number):
             index = random.randint(1, len(holes))
             line.append(holes[index - 1])
-            line.append(max_interval)
+            line.append(interval_size)
             del holes[index - 1]
 
         pos_x = 0
-        white = True
+        plain = True
         for x in line:
             if (pos_x + x) > Window.width:
                 x = Window.width - pos_x
-            if white:
+            if plain:
                 with self.canvas:
                     block = Block((pos_x, Window.height - 50), (x, 30))
                     self._blocks.add(block)
             pos_x += x
-            white = not white
+            plain = not plain
 
     def _check_for_collision(self, block):
-        same_y = block.pos[1] <= (int(self._player.pos[1]) + self._player.size[1])
-        block_min = block.pos[0]
-        block_max = block.pos[0] + block.size[0]
-        player_left = block_min < int(self._player.pos[0]) < block_max
-        player_right = block_min < (int(self._player.pos[0]) + self._player.size[0]) < block_max
+        same_height_or_under = block.pos[1] <= (int(self._player.pos[1]) + self._player.size[1])
+        block_left = block.pos[0]
+        block_right = block.pos[0] + block.size[0]
+        player_left_in_block = block_left < int(self._player.pos[0]) < block_right
+        player_right_in_block = block_left < (int(self._player.pos[0]) + self._player.size[0]) < block_right
 
-        if same_y and (player_left or player_right):
+        if same_height_or_under and (player_left_in_block or player_right_in_block):
             self._blocks = set()
             self._lost()
 
@@ -122,18 +124,19 @@ class Screen(Widget):
         self.canvas.clear()
 
         with self.canvas:
+            text = "Your spaceship crashed...\n"
             if self._score > 0:
-                text = "But you managed to score " + str(self._score) + " points!!\n\n"
+                text += "But you managed to score " + str(self._score) + " points!!\n\n"
             else:
-                text = "You will do better next time!!\n\n"
+                text += "You will do better next time!!\n\n"
+            text += "Press `y` if you want to play again."
 
             Label(
                 pos=((Window.width - 100) / 2, Window.height / 2),
                 size=(100, 30),
-                text="Your spaceship crashed...\n"
-                     + text +
-                     "Press `y` if you want to play again."
+                text=text
             )
+
             self._restart = Clock.schedule_interval(self._on_endgame, 0)
 
     def _on_endgame(self, dt):
