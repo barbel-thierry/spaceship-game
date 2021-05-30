@@ -1,6 +1,8 @@
 # A-Void
 #### A spaceship game
 
+The goal of this game is to 'A-Void' blocks by making your ship go right or left.
+
 ## Install
 
 First, set `block.png` and `ship.png` into `assets/` directory.
